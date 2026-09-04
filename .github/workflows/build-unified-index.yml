@@ -30,25 +30,31 @@ jobs:
           root = Path('frontend')
           base = root / 'index.html'
           source = base.read_text(encoding='utf-8')
-          files = ['executive.html'] + [f'stage{i}.html' for i in range(7, 20)]
-          modules = {}
 
-          for name in files:
-              p = root / name
-              if not p.exists():
-                  continue
+          # Treat every individual stage HTML file as a source module.
+          # This automatically includes future stages without another workflow edit.
+          stage_files = sorted(root.glob('stage*.html'), key=lambda p: int(re.search(r'stage(\d+)\.html$', p.name, re.I).group(1)))
+          files = [root / 'executive.html'] + stage_files
+          modules = []
+
+          for p in files:
+              name = p.name
               raw = p.read_text(encoding='utf-8')
               body_m = re.search(r'<body[^>]*>(.*)</body>', raw, re.I | re.S)
               styles = re.findall(r'<style[^>]*>(.*?)</style>', raw, re.I | re.S)
               scripts = re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', raw, re.I | re.S)
               if not body_m:
                   continue
+
               body = body_m.group(1)
               body = re.sub(r'\s+onclick\s*=\s*(["\'])(.*?)\1', r' data-uaf-action=\1\2\1', body, flags=re.I | re.S)
               script = '\n'.join(scripts)
+
+              # Scope common DOM accessors to the module's ShadowRoot.
               script = re.sub(r'document\.getElementById\s*\(([^)]*)\)', r'root.querySelector("#"+CSS.escape(String(\1)))', script)
               script = script.replace('document.querySelectorAll(', 'root.querySelectorAll(')
               script = script.replace('document.querySelector(', 'root.querySelector(')
+
               actions = re.findall(r'data-uaf-action=["\']\s*([A-Za-z_$][\w$]*)', body)
               exports = []
               for fn in dict.fromkeys(actions):
@@ -56,7 +62,18 @@ jobs:
                       exports.append(fn)
               export_code = '\n'.join('try{ns[' + json.dumps(fn) + ']=' + fn + '}catch(e){}' for fn in exports)
               script = script + '\n' + export_code
-              modules[name] = {'body': body, 'styles': '\n'.join(styles), 'scripts': script, 'exports': exports}
+
+              if name.lower() == 'executive.html':
+                  label = 'Executive Intelligence'
+                  group = 'executive'
+                  order = 0
+              else:
+                  n = int(re.search(r'stage(\d+)\.html$', name, re.I).group(1))
+                  label = f'Stage {n}'
+                  group = 'stage'
+                  order = n
+
+              modules.append({'id': name.rsplit('.',1)[0], 'file': name, 'label': label, 'group': group, 'order': order, 'body': body, 'styles': '\n'.join(styles), 'scripts': script, 'exports': exports})
 
           source = re.sub(r'<section id="workspace"[^>]*>.*?</section>', '<section id="workspace" class="module hidden"><div id="moduleRoot" aria-live="polite"></div></section>', source, flags=re.I | re.S)
           source = re.sub(r'\.module iframe\{[^}]*\}', '', source)
@@ -74,20 +91,24 @@ jobs:
           const $=id=>document.getElementById(id);
           const UAF_NATIVE={};
           const modules=__MODULES__;
-          function buildNav(){ $('nav').innerHTML=modules.map(m=>'<button id="nav-'+m.id+'" onclick="openModule(\\''+m.id+'\\')">'+m.label+'</button>').join(''); }
-          function setActive(id){modules.forEach(m=>{const b=$('nav-'+m.id);if(b)b.classList.toggle('active',m.id===id)})}
+          const coreNav={id:'core',label:'Core M&E/L',group:'core',order:-1};
+          function buildNav(){
+            const all=[coreNav].concat(modules);
+            $('nav').innerHTML=all.map(m=>'<button id="nav-'+m.id+'" onclick="openModule(\\''+m.id+'\\')">'+m.label+'</button>').join('');
+          }
+          function setActive(id){[coreNav].concat(modules).forEach(m=>{const b=$('nav-'+m.id);if(b)b.classList.toggle('active',m.id===id)})}
           function bindActions(root,ns){
             root.querySelectorAll('[data-uaf-action]').forEach(el=>{
               const code=el.getAttribute('data-uaf-action')||'';
               el.addEventListener('click',event=>{
-                try{ new Function('event','ns','with(ns){'+code+'}')(event,ns); }
+                try{ new Function('event','ns','openModule','with(ns){'+code+'}')(event,ns,openModule); }
                 catch(e){ $('status').textContent=e.message||String(e); }
               });
             });
           }
           async function openModule(id){
+            if(id==='core'){setActive(id);$('home').classList.remove('hidden');$('workspace').classList.add('hidden');$('status').textContent='Unified home dashboard';loadDashboard();return;}
             const m=modules.find(x=>x.id===id);if(!m)return;setActive(id);
-            if(!m.file){$('home').classList.remove('hidden');$('workspace').classList.add('hidden');$('status').textContent='Unified home dashboard';loadDashboard();return;}
             $('home').classList.add('hidden');$('workspace').classList.remove('hidden');$('status').textContent='Opening '+m.label+'…';
             const host=$('moduleRoot');host.replaceChildren();
             const shadow=host.attachShadow({mode:'open'});
@@ -95,7 +116,7 @@ jobs:
             const content=document.createElement('div');content.className='uaf-native-module';content.innerHTML=String(m.body||'');shadow.appendChild(content);
             const ns={};UAF_NATIVE[m.id]=ns;
             try{
-              new Function('API_URL','root','ns',String(m.scripts||''))(window.API_URL,shadow,ns);
+              new Function('API_URL','root','ns','openModule',String(m.scripts||''))(window.API_URL,shadow,ns,openModule);
               bindActions(shadow,ns);
               $('status').textContent=m.label+' loaded';
             }catch(e){$('status').innerHTML='<div class="error">'+String(e.message||e)+'</div>';}
@@ -111,14 +132,23 @@ jobs:
           source = source[:source.find(end_marker)] + end_marker + '\n</body>\n</html>\n'
           base.write_text(source, encoding='utf-8')
 
-      - name: Validate native SPA
+      - name: Validate native SPA and embedded source modules
+        shell: python
         run: |
-          test -s frontend/index.html
-          grep -q 'UAF_NATIVE' frontend/index.html
-          grep -q 'moduleRoot' frontend/index.html
-          grep -q 'attachShadow' frontend/index.html
-          ! grep -q '<iframe' frontend/index.html
-          grep -q 'stage19.html' frontend/index.html
+          from pathlib import Path
+          import re
+          p=Path('frontend/index.html')
+          s=p.read_text(encoding='utf-8')
+          assert p.stat().st_size > 0
+          assert 'UAF_NATIVE' in s
+          assert 'moduleRoot' in s
+          assert 'attachShadow' in s
+          assert '<iframe' not in s.lower()
+          assert 'stage19.html' in s
+          for f in [Path('frontend/executive.html')] + sorted(Path('frontend').glob('stage*.html')):
+              if f.exists():
+                  assert f.name in s, f'Embedded module missing: {f.name}'
+          print('Embedded source modules:', ', '.join([f.name for f in [Path('frontend/executive.html')] + sorted(Path('frontend').glob('stage*.html'))]))
 
       - name: Commit generated index
         run: |
@@ -126,5 +156,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add frontend/index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Build native single-file unified frontend [skip ci]'
+          git commit -m 'Build unified index with all source modules [skip ci]'
           git push
