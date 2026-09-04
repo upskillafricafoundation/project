@@ -15,4 +15,8 @@ function createStage8Record_(entity,data){var map={qualityCheck:'DataQualityChec
 function stage8GetAction_(a){return ['stage8','dataQuality','verificationQueue','corrections','governanceActions','qualityScore'].indexOf(a)>=0;}
 function stage8Get_(a,e){permission_('read');var p=e&&e.parameter?e.parameter.projectId||'':'';if(a==='stage8')return json_(Object.assign({ok:true},stage8Dashboard_(p)));if(a==='dataQuality')return json_(Object.assign({ok:true},stage8Quality_(p)));var map={verificationQueue:'VerificationQueue',corrections:'DataCorrections',governanceActions:'GovernanceActions',qualityScore:'DataQualityScores'};return json_({ok:true,data:stage8Visible_(map[a],p)});}
 function stage8PostAction_(a){return ['stage8Setup','createStage8Record','calculateQualityScore'].indexOf(a)>=0;}
-function stage8Post_(a,d){if(a==='stage8Setup'){permission_('update');return json_({ok:true,message:setupStage8()});}if(a==='calculateQualityScore'){permission_('report',d.projectId||'');return json_({ok:true,data:stage8CalculateScore_(d.projectId||'',d.period||'')});}permission_('create',d.data&&d.data['Project ID']);return createStage8Record_(d.entity,d.data);}
+// UAF_STAGE8_REFINED_SCORE
+function stage8RefinedScoreAction_(a){return a==='calculateRefinedQualityScore';}
+// UAF_STAGE8_REFINED_POST_ROUTE
+function stage8Post_(a,d){if(stage8RefinedScoreAction_(a))return stage8RefinedScorePost_(d);if(a==='stage8Setup'){permission_('update');return json_({ok:true,message:setupStage8()});}if(a==='calculateQualityScore'){permission_('report',d.projectId||'');return json_({ok:true,data:stage8CalculateScore_(d.projectId||'',d.period||'')});}permission_('create',d.data&&d.data['Project ID']);return createStage8Record_(d.entity,d.data);}
+function stage8RefinedScorePost_(d){permission_('report',d.projectId||'');return json_({ok:true,data:calculateRefinedQualityScore_(d.projectId||'',d.period||'')});}
