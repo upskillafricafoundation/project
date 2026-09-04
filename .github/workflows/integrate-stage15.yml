@@ -1,0 +1,41 @@
+name: Integrate Stage 15 Backend
+on:
+  push:
+    branches: [main]
+    paths: ['apps-script/Stage15.gs','.github/workflows/integrate-stage15.yml']
+  workflow_dispatch:
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Setup.gs routing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps-script/Setup.gs'); s=p.read_text()
+          get='/* UAF_STAGE15_GET_ROUTING */if(stage15GetAction_(a))return stage15Get_(a,e);'
+          post='/* UAF_STAGE15_POST_ROUTING */if(stage15PostAction_(a))return stage15Post_(a,d);'
+          if get not in s:
+              anchor="if(a==='currentUser')return currentUser_();"
+              if anchor not in s: raise SystemExit('GET anchor not found')
+              s=s.replace(anchor,anchor+get,1)
+          if post not in s:
+              start=s.find('function doPost(e)')
+              if start<0: raise SystemExit('doPost not found')
+              pos=s.find("if(a==='currentUser')return currentUser_();",start)
+              if pos<0: raise SystemExit('POST anchor not found')
+              s=s[:pos]+post+s[pos:]
+          p.write_text(s)
+          PY
+          grep -q 'UAF_STAGE15_GET_ROUTING' apps-script/Setup.gs
+          grep -q 'UAF_STAGE15_POST_ROUTING' apps-script/Setup.gs
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps-script/Setup.gs
+          git diff --cached --quiet || git commit -m 'Integrate Stage 15 backend routing'
+          git push
