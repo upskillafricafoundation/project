@@ -1,0 +1,38 @@
+name: Integrate Stage 16 UI
+on:
+  push:
+    paths:
+      - 'frontend/stage16.html'
+      - '.github/workflows/integrate-stage16-ui.yml'
+  workflow_dispatch:
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add Stage 16 navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('frontend/index.html')
+          s=p.read_text()
+          marker='UAF_STAGE16_NAV'
+          if marker not in s:
+              link='<!-- UAF_STAGE16_NAV --><a href="stage16.html">Knowledge & Learning</a>'
+              anchors=['stage15.html','stage14.html','stage13.html','stage12.html']
+              for a in anchors:
+                  if a in s:
+                      i=s.find(a)
+                      end=s.find('>',i)
+                      if end>=0:
+                          s=s[:end+1]+link+s[end+1:]
+                          break
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/index.html
+          git diff --cached --quiet || git commit -m 'Integrate Stage 16 into main UI'
+          git push
