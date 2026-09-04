@@ -53,6 +53,7 @@ jobs:
           done
 
           mv "$tmp" "$out"
+          rm -f apps-script/BUILD_TRIGGER.gs
 
       - name: Commit combined Code.gs
         shell: bash
@@ -60,7 +61,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps-script/Code.gs
+          git add apps-script/Code.gs apps-script/BUILD_TRIGGER.gs
           if git diff --cached --quiet; then
             echo "Code.gs is already up to date."
             exit 0
