@@ -44,27 +44,15 @@ jobs:
               if not body_m:
                   continue
               body = body_m.group(1)
-              # Module navigation becomes delegated actions so no inline onclick
-              # depends on a global function and no iframe is required.
               body = re.sub(r'\s+onclick\s*=\s*(["\'])(.*?)\1', r' data-uaf-action=\1\2\1', body, flags=re.I | re.S)
-              # Scope common DOM lookups to the module root. This prevents IDs such
-              # as status/projects from colliding with the unified shell.
               script = '\n'.join(scripts)
-              script = re.sub(r'document\.getElementById\s*\(', 'root.getElementById(', script)
+              # Scope module DOM queries to its ShadowRoot. ShadowRoot has
+              # querySelector/querySelectorAll, but not getElementById.
+              script = re.sub(r'document\.getElementById\s*\(([^)]*)\)', r'root.querySelector("#"+CSS.escape(String(\1)))', script)
               script = script.replace('document.querySelectorAll(', 'root.querySelectorAll(')
               script = script.replace('document.querySelector(', 'root.querySelector(')
-              # The native runtime supplies the module-local $ helper where possible.
-              script = re.sub(r'const\s+\$\s*=\s*id\s*=>\s*root\.getElementById\(id\)\s*;?', 'const $=id=>root.getElementById(id);', script)
-              # Capture function/arrow names used by delegated inline actions and
-              # expose only those names through the module namespace.
-              actions = re.findall(r'data-uaf-action=["\']\s*([A-Za-z_$][\w$]*)', body)
-              exports = []
-              for fn in dict.fromkeys(actions):
-                  if re.search(r'function\s+' + re.escape(fn) + r'\s*\(', script) or re.search(r'(?:const|let|var)\s+' + re.escape(fn) + r'\s*=', script):
-                      exports.append(fn)
-              modules[name] = {'body': body, 'styles': '\n'.join(styles), 'scripts': script, 'exports': exports}
+              modules[name] = {'body': body, 'styles': '\n'.join(styles), 'scripts': script}
 
-          # Replace the old iframe workspace with a native shadow-DOM host.
           source = re.sub(r'<section id="workspace"[^>]*>.*?</section>', '<section id="workspace" class="module hidden"><div id="moduleRoot" aria-live="polite"></div></section>', source, flags=re.I | re.S)
           source = re.sub(r'\.module iframe\{[^}]*\}', '', source)
 
@@ -101,9 +89,8 @@ jobs:
             const style=document.createElement('style');style.textContent=String(m.styles||'');shadow.appendChild(style);
             const content=document.createElement('div');content.className='uaf-native-module';content.innerHTML=String(m.body||'');shadow.appendChild(content);
             const ns={};UAF_NATIVE[m.id]=ns;
-            bindActions(shadow,ns);
             try{
-              const code=String(m.scripts||'')+'\\n'+(m.exports||[]).map(n=>'try{ns['+JSON.stringify(n)+']='+n+'}catch(e){}').join('\\n');
+              const code=String(m.scripts||'');
               new Function('API_URL','root','ns',code)(window.API_URL,shadow,ns);
               bindActions(shadow,ns);
               $('status').textContent=m.label+' loaded';
@@ -124,7 +111,7 @@ jobs:
           test -s frontend/index.html
           grep -q 'UAF_NATIVE' frontend/index.html
           grep -q 'moduleRoot' frontend/index.html
-          grep -q 'shadowRoot\|attachShadow' frontend/index.html
+          grep -q 'attachShadow' frontend/index.html
           ! grep -q '<iframe' frontend/index.html
           grep -q 'stage19.html' frontend/index.html
 
