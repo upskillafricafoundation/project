@@ -105,7 +105,8 @@ jobs:
           async function loadUser(){try{let u=await api('?action=currentUser');if(u&&u.authorized){$('userStatus').innerHTML='<small>Signed in · '+String(u.user?.Name||u.email||'Authorized user')+'</small>'}else{$('userStatus').innerHTML='<small>Access not authorized</small>'}}catch(e){$('userStatus').innerHTML='<small>API connection unavailable</small>'}}
           buildNav();openModule('core');loadUser();
           </script>'''
-          app_script = app_script.replace('__MODULES__', 'JSON.parse('+json.dumps(json.dumps(modules, ensure_ascii=False, separators=(',', ':')))+')')
+          payload = json.dumps(json.dumps(modules, ensure_ascii=False, separators=(',', ':'))).replace('<', '\\u003c')
+          app_script = app_script.replace('__MODULES__', 'JSON.parse('+payload+')')
           source = source[:start] + app_script + source[script_end+9:end]
           source = source[:source.find(end_marker)] + end_marker + '\n</body>\n</html>\n'
           base.write_text(source, encoding='utf-8')
