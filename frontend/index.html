@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAF Digital M&E/L</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f5f7fa;color:#172033}header{background:#123b8e;color:#fff;padding:18px 24px}main{padding:24px;max-width:1200px;margin:auto}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}.card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px #0001}.num{font-size:30px;font-weight:700;margin-top:8px}.muted{color:#687386}nav{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}button{border:0;border-radius:8px;padding:10px 14px;background:#123b8e;color:#fff;cursor:pointer}.section{margin-top:24px}.bar{height:12px;background:#e6e9ef;border-radius:8px;overflow:hidden}.fill{height:100%;background:#d72638;width:0}
+</style></head>
+<body>
+<header><strong>Upskill Africa Foundation</strong><div>Digital Monitoring, Evaluation & Learning System</div></header>
+<main>
+<nav><button onclick="show('dashboard')">Dashboard</button><button onclick="show('projects')">Projects</button><button onclick="show('beneficiaries')">Beneficiaries</button><button onclick="show('indicators')">Indicators</button><button onclick="show('reports')">Reports</button></nav>
+<section id="dashboard"><h2>Organization Dashboard</h2><div class="grid"><div class="card"><div class="muted">Active Projects</div><div class="num" id="projectsN">0</div></div><div class="card"><div class="muted">Beneficiaries</div><div class="num" id="beneficiariesN">0</div></div><div class="card"><div class="muted">Indicators</div><div class="num" id="indicatorsN">0</div></div><div class="card"><div class="muted">Completed</div><div class="num" id="completedN">0</div></div></div><div class="section card"><h3>Indicator Performance</h3><div id="indicatorList">Connect the Apps Script Web App to load live data.</div></div></section>
+<section id="projects" hidden><h2>Projects</h2><div class="card">Manage NIC, BTC, YIT Innovation, RLX Summit and future projects from one system.</div></section>
+<section id="beneficiaries" hidden><h2>Beneficiaries / Participants</h2><div class="card">Track each person through: Identified → Verified → Referred → Enrolled → Household Empowered → Follow-up → Retained → Completed.</div></section>
+<section id="indicators" hidden><h2>Indicators & KPIs</h2><div class="card">Baseline, target, achievement, percentage, data source, frequency and responsible person.</div></section>
+<section id="reports" hidden><h2>Reports</h2><div class="card">Monthly, quarterly, project and donor reporting, success stories, lessons learned, challenges and recommendations.</div></section>
+</main>
+<script>
+function show(id){document.querySelectorAll('section').forEach(s=>s.hidden=true);document.getElementById(id).hidden=false}
+const API_URL='';
+async function load(){if(!API_URL)return;try{const r=await fetch(API_URL+'?action=dashboard');const d=await r.json();document.getElementById('projectsN').textContent=d.projects||0;document.getElementById('beneficiariesN').textContent=d.beneficiaries||0;document.getElementById('indicatorsN').textContent=d.indicators||0;document.getElementById('completedN').textContent=d.completed||0}catch(e){console.error(e)}}load();
+</script></body></html>
