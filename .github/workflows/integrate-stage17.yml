@@ -1,0 +1,32 @@
+name: Integrate Stage 17 Backend
+on:
+  push:
+    paths: ['apps-script/Stage17.gs','.github/workflows/integrate-stage17.yml']
+  workflow_dispatch:
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    permissions: {contents: write}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Setup.gs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps-script/Setup.gs'); s=p.read_text()
+          g="/* UAF_STAGE17_GET_ROUTING */"; q="/* UAF_STAGE17_POST_ROUTING */"
+          if g not in s:
+              a="if(a==='currentUser')return currentUser_();"
+              s=s.replace(a,a+g+"if(stage17GetAction_(a))return stage17Get_(a,e);",1)
+          if q not in s:
+              start=s.index('function doPost(e)')
+              pos=s.index("if(a==='currentUser')return currentUser_();",start)
+              s=s[:pos]+q+"if(stage17PostAction_(a))return stage17Post_(a,d);"+s[pos:]
+          p.write_text(s)
+          if g not in s or q not in s: raise SystemExit('Stage 17 routing failed')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps-script/Setup.gs
+          git diff --cached --quiet || git commit -m 'Integrate Stage 17 backend routing'
+          git push
