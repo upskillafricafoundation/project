@@ -1,0 +1,44 @@
+name: Integrate Stage 11 Financial M&E
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps-script/Stage11.gs'
+      - '.github/workflows/integrate-stage11.yml'
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate Stage 11 into Setup.gs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps-script/Setup.gs')
+          s=p.read_text()
+          get="/* UAF_STAGE11_GET_ROUTING */if(stage11GetAction_(a))return stage11Get_(a,e);"
+          post="/* UAF_STAGE11_POST_ROUTING */if(stage11PostAction_(a))return stage11Post_(a,d);"
+          if 'UAF_STAGE11_GET_ROUTING' not in s:
+              anchor="if(a==='currentUser')return currentUser_();"
+              if anchor not in s: raise SystemExit('GET anchor not found')
+              s=s.replace(anchor,anchor+get,1)
+          if 'UAF_STAGE11_POST_ROUTING' not in s:
+              anchor="if(a==='currentUser')return currentUser_();"
+              if anchor not in s: raise SystemExit('POST anchor not found')
+              s=s.replace(anchor,anchor+post,1)
+          p.write_text(s)
+          PY
+      - name: Validate integration markers
+        run: |
+          grep -q 'UAF_STAGE11_GET_ROUTING' apps-script/Setup.gs
+          grep -q 'UAF_STAGE11_POST_ROUTING' apps-script/Setup.gs
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps-script/Setup.gs
+          git diff --cached --quiet || git commit -m 'Integrate Stage 11 financial routes into Setup'
+          git push
