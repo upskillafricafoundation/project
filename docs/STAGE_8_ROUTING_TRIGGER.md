@@ -1,0 +1,1 @@
+Stage 8 routing integration trigger. The GitHub Actions workflow integrates Stage8.gs routing into Setup.gs when the Stage 8 module is added.
