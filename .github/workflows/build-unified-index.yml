@@ -21,66 +21,118 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build embedded module bundle
+      - name: Build native single-page frontend
         shell: python
         run: |
           from pathlib import Path
-          import json
-          import re
+          import json, re
 
           root = Path('frontend')
           base = root / 'index.html'
           source = base.read_text(encoding='utf-8')
-
           files = ['executive.html'] + [f'stage{i}.html' for i in range(7, 20)]
           modules = {}
+
           for name in files:
               p = root / name
               if not p.exists():
                   continue
               raw = p.read_text(encoding='utf-8')
-              body = re.search(r'<body[^>]*>(.*)</body>', raw, re.I | re.S)
+              body_m = re.search(r'<body[^>]*>(.*)</body>', raw, re.I | re.S)
               styles = re.findall(r'<style[^>]*>(.*?)</style>', raw, re.I | re.S)
               scripts = re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', raw, re.I | re.S)
-              if body:
-                  modules[name] = {
-                      'body': body.group(1),
-                      'styles': '\n'.join(styles),
-                      'scripts': '\n'.join(scripts),
-                  }
+              if not body_m:
+                  continue
+              body = body_m.group(1)
+              # Module navigation becomes delegated actions so no inline onclick
+              # depends on a global function and no iframe is required.
+              body = re.sub(r'\s+onclick\s*=\s*(["\'])(.*?)\1', r' data-uaf-action=\1\2\1', body, flags=re.I | re.S)
+              # Scope common DOM lookups to the module root. This prevents IDs such
+              # as status/projects from colliding with the unified shell.
+              script = '\n'.join(scripts)
+              script = re.sub(r'document\.getElementById\s*\(', 'root.getElementById(', script)
+              script = script.replace('document.querySelectorAll(', 'root.querySelectorAll(')
+              script = script.replace('document.querySelector(', 'root.querySelector(')
+              # The native runtime supplies the module-local $ helper where possible.
+              script = re.sub(r'const\s+\$\s*=\s*id\s*=>\s*root\.getElementById\(id\)\s*;?', 'const $=id=>root.getElementById(id);', script)
+              # Capture function/arrow names used by delegated inline actions and
+              # expose only those names through the module namespace.
+              actions = re.findall(r'data-uaf-action=["\']\s*([A-Za-z_$][\w$]*)', body)
+              exports = []
+              for fn in dict.fromkeys(actions):
+                  if re.search(r'function\s+' + re.escape(fn) + r'\s*\(', script) or re.search(r'(?:const|let|var)\s+' + re.escape(fn) + r'\s*=', script):
+                      exports.append(fn)
+              modules[name] = {'body': body, 'styles': '\n'.join(styles), 'scripts': script, 'exports': exports}
 
-          marker = '<!-- UAF_EMBEDDED_MODULES -->'
-          payload = json.dumps(modules, ensure_ascii=False, separators=(',', ':'))
+          # Replace the old iframe workspace with a native shadow-DOM host.
+          source = re.sub(r'<section id="workspace"[^>]*>.*?</section>', '<section id="workspace" class="module hidden"><div id="moduleRoot" aria-live="polite"></div></section>', source, flags=re.I | re.S)
+          source = re.sub(r'\.module iframe\{[^}]*\}', '', source)
 
-          if marker in source:
-              source = source.split(marker, 1)[0] + marker + '\n<script>window.UAF_EMBEDDED_MODULES=' + payload + ';</script>\n</body>\n</html>\n'
-          else:
-              source = source.replace('</body>', marker + '\n<script>window.UAF_EMBEDDED_MODULES=' + payload + ';</script>\n</body>')
+          start = source.find('<script>\nconst $=id=>document.getElementById(id);')
+          end_marker = '<!-- UAF_EMBEDDED_MODULES -->'
+          end = source.find(end_marker)
+          if start == -1 or end == -1:
+              raise SystemExit('Unified shell markers not found')
+          script_end = source.find('</script>', start)
+          if script_end == -1 or script_end > end:
+              raise SystemExit('Unified shell script not found')
 
-          old = 'frame.src=m.file;'
-          new = '''const mod=window.UAF_EMBEDDED_MODULES?.[m.file];
-          if(!mod){$('status').textContent='Module source not embedded: '+m.file;return;}
-          const childApi=JSON.stringify(window.API_URL);
-          const safeScript=String(mod.scripts||'').replace(/<\\/script>/gi,'<\\\\/script>');
-          frame.srcdoc='<!doctype html><html><head><meta charset="utf-8"><style>'+String(mod.styles||'')+'</style></head><body>'+String(mod.body||'')+'<script>const API_URL='+childApi+';<\\/script><script>'+safeScript+'<\\/script></body></html>';'''
-          if old in source:
-              source = source.replace(old, new)
-          else:
-              raise SystemExit('Expected iframe navigation statement not found')
-
+          app_script = '''<script>
+          const $=id=>document.getElementById(id);
+          const UAF_NATIVE={};
+          const modules=__MODULES__;
+          function buildNav(){ $('nav').innerHTML=modules.map(m=>'<button id="nav-'+m.id+'" onclick="openModule(\\''+m.id+'\\')">'+m.label+'</button>').join(''); }
+          function setActive(id){modules.forEach(m=>{const b=$('nav-'+m.id);if(b)b.classList.toggle('active',m.id===id)})}
+          function bindActions(root,ns){
+            root.querySelectorAll('[data-uaf-action]').forEach(el=>{
+              const code=el.getAttribute('data-uaf-action')||'';
+              el.addEventListener('click',event=>{
+                try{ new Function('event','ns','with(ns){'+code+'}')(event,ns); }
+                catch(e){ $('status').textContent=e.message||String(e); }
+              });
+            });
+          }
+          async function openModule(id){
+            const m=modules.find(x=>x.id===id);if(!m)return;setActive(id);
+            if(!m.file){$('home').classList.remove('hidden');$('workspace').classList.add('hidden');$('status').textContent='Unified home dashboard';loadDashboard();return;}
+            $('home').classList.add('hidden');$('workspace').classList.remove('hidden');$('status').textContent='Opening '+m.label+'…';
+            const host=$('moduleRoot');host.replaceChildren();
+            const shadow=host.attachShadow({mode:'open'});
+            const style=document.createElement('style');style.textContent=String(m.styles||'');shadow.appendChild(style);
+            const content=document.createElement('div');content.className='uaf-native-module';content.innerHTML=String(m.body||'');shadow.appendChild(content);
+            const ns={};UAF_NATIVE[m.id]=ns;
+            bindActions(shadow,ns);
+            try{
+              const code=String(m.scripts||'')+'\\n'+(m.exports||[]).map(n=>'try{ns['+JSON.stringify(n)+']='+n+'}catch(e){}').join('\\n');
+              new Function('API_URL','root','ns',code)(window.API_URL,shadow,ns);
+              bindActions(shadow,ns);
+              $('status').textContent=m.label+' loaded';
+            }catch(e){$('status').innerHTML='<div class="error">'+String(e.message||e)+'</div>';}
+          }
+          async function api(q){if(!API_URL||API_URL==='YOUR_APPS_SCRIPT_EXEC_URL')throw Error('Apps Script /exec URL is not configured.');let r=await fetch(API_URL+q);if(!r.ok)throw Error('API request failed: '+r.status);return r.json()}
+          async function loadDashboard(){try{let d=await api('?action=dashboard');$('projects').textContent=d.projects||0;$('beneficiaries').textContent=d.beneficiaries||0;$('indicators').textContent=d.indicators||0;$('completed').textContent=d.completed||0;$('alerts').textContent=d.alerts||0;$('status').textContent='Dashboard connected to Apps Script API';}catch(e){$('status').textContent=e.message}}
+          async function loadUser(){try{let u=await api('?action=currentUser');if(u&&u.authorized){$('userStatus').innerHTML='<small>Signed in · '+String(u.user?.Name||u.email||'Authorized user')+'</small>'}else{$('userStatus').innerHTML='<small>Access not authorized</small>'}}catch(e){$('userStatus').innerHTML='<small>API connection unavailable</small>'}}
+          buildNav();openModule('core');loadUser();
+          </script>'''
+          app_script = app_script.replace('__MODULES__', 'JSON.parse('+json.dumps(json.dumps(modules, ensure_ascii=False, separators=(',', ':')))+')')
+          source = source[:start] + app_script + source[script_end+9:end]
+          source = source[:source.find(end_marker)] + end_marker + '\n</body>\n</html>\n'
           base.write_text(source, encoding='utf-8')
-      - name: Validate generated index
+
+      - name: Validate native SPA
         run: |
           test -s frontend/index.html
-          grep -q 'UAF_EMBEDDED_MODULES' frontend/index.html
-          grep -q 'stage7.html' frontend/index.html
+          grep -q 'UAF_NATIVE' frontend/index.html
+          grep -q 'moduleRoot' frontend/index.html
+          grep -q 'shadowRoot\|attachShadow' frontend/index.html
+          ! grep -q '<iframe' frontend/index.html
           grep -q 'stage19.html' frontend/index.html
-          grep -q 'srcdoc' frontend/index.html
+
       - name: Commit generated index
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add frontend/index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Build single-file unified frontend [skip ci]'
+          git commit -m 'Build native single-file unified frontend [skip ci]'
           git push
