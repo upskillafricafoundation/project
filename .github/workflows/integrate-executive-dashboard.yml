@@ -1,0 +1,32 @@
+name: Integrate Executive Dashboard
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add executive dashboard navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('frontend/index.html')
+          s=p.read_text()
+          marker='UAF_EXECUTIVE_NAV'
+          if marker not in s:
+              anchor='<span id="UAF_STAGE78_NAV"></span>'
+              replacement=anchor+'<span id="UAF_EXECUTIVE_NAV"></span><button onclick="window.location.href=\'executive.html\'">Executive Intelligence</button>'
+              if anchor in s:
+                  s=s.replace(anchor,replacement,1)
+                  p.write_text(s)
+          PY
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/index.html
+          git diff --cached --quiet || git commit -m 'feat: integrate executive intelligence dashboard'
+          git push
