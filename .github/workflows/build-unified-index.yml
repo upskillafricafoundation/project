@@ -21,11 +21,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build single-file module index
+      - name: Build embedded module bundle
         shell: python
         run: |
           from pathlib import Path
-          import html
           import json
           import re
 
@@ -43,28 +42,31 @@ jobs:
               body = re.search(r'<body[^>]*>(.*)</body>', raw, re.I | re.S)
               styles = re.findall(r'<style[^>]*>(.*?)</style>', raw, re.I | re.S)
               scripts = re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', raw, re.I | re.S)
-              if not body:
-                  continue
-              modules[name] = {
-                  'body': body.group(1),
-                  'styles': '\n'.join(styles),
-                  'scripts': '\n'.join(scripts),
-              }
+              if body:
+                  modules[name] = {
+                      'body': body.group(1),
+                      'styles': '\n'.join(styles),
+                      'scripts': '\n'.join(scripts),
+                  }
 
-          payload = json.dumps(modules, ensure_ascii=False)
           marker = '<!-- UAF_EMBEDDED_MODULES -->'
+          payload = json.dumps(modules, ensure_ascii=False, separators=(',', ':'))
+
           if marker in source:
-              source = source.split(marker)[0] + marker + '\n<script>window.UAF_EMBEDDED_MODULES=' + payload + ';</script>\n' + source.split(marker,1)[1].split('</body>',1)[-1] if '</body>' in source else source
+              source = source.split(marker, 1)[0] + marker + '\n<script>window.UAF_EMBEDDED_MODULES=' + payload + ';</script>\n</body>\n</html>\n'
           else:
               source = source.replace('</body>', marker + '\n<script>window.UAF_EMBEDDED_MODULES=' + payload + ';</script>\n</body>')
 
-          # Replace iframe navigation with embedded srcdoc navigation.
-          source = source.replace("$('status').textContent='Opening '+m.label+'…';", "$('status').textContent='Opening '+m.label+'…';")
-          source = source.replace("frame.src=m.file;", "const mod=window.UAF_EMBEDDED_MODULES?.[m.file];\n if(!mod){$('status').textContent='Module source not embedded: '+m.file;return;}\n frame.srcdoc='<!doctype html><html><head><meta charset=\\\"utf-8\\\"><style>'+mod.styles+'</style></head><body>'+mod.body+'<script>window.API_URL='+JSON.stringify('')+';parent.postMessage({type:\\'uaf-module-ready\\',file:'+JSON.stringify('')+'},\\'*\\');</script><script>'+mod.scripts.replace(/<\\/script>/gi,'<\\\\/script>')+'</script></body></html>';\n frame.onload=()=>{ try{ frame.contentWindow.API_URL=window.API_URL; }catch(e){}; $('status').textContent=m.label+' loaded'; };")
-
-          # The embedded module scripts read API_URL from their own window; inject the configured URL.
-          source = source.replace("frame.srcdoc='<!doctype html>", "frame.srcdoc='<!doctype html>")
-          source = source.replace("<style>'+mod.styles+'</style>", "<style>'+mod.styles+'</style><script>const API_URL=window.parent.API_URL;</script>")
+          old = 'frame.src=m.file;'
+          new = '''const mod=window.UAF_EMBEDDED_MODULES?.[m.file];
+          if(!mod){$('status').textContent='Module source not embedded: '+m.file;return;}
+          const childApi=JSON.stringify(window.API_URL);
+          const safeScript=String(mod.scripts||'').replace(/<\\/script>/gi,'<\\\\/script>');
+          frame.srcdoc='<!doctype html><html><head><meta charset="utf-8"><style>'+String(mod.styles||'')+'</style></head><body>'+String(mod.body||'')+'<script>const API_URL='+childApi+';<\\/script><script>'+safeScript+'<\\/script></body></html>';'''
+          if old in source:
+              source = source.replace(old, new)
+          else:
+              raise SystemExit('Expected iframe navigation statement not found')
 
           base.write_text(source, encoding='utf-8')
       - name: Validate generated index
@@ -73,6 +75,7 @@ jobs:
           grep -q 'UAF_EMBEDDED_MODULES' frontend/index.html
           grep -q 'stage7.html' frontend/index.html
           grep -q 'stage19.html' frontend/index.html
+          grep -q 'srcdoc' frontend/index.html
       - name: Commit generated index
         run: |
           git config user.name 'github-actions[bot]'
