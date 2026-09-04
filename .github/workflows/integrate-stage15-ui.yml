@@ -1,0 +1,39 @@
+name: Integrate Stage 15 UI
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/stage15.html','.github/workflows/integrate-stage15-ui.yml']
+  workflow_dispatch:
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add Stage 15 navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('frontend/index.html')
+          if not p.exists(): raise SystemExit('frontend/index.html not found')
+          s=p.read_text()
+          if 'stage15.html' not in s:
+              link='<a href="stage15.html">Partnerships & Collaboration</a>'
+              anchors=['stage14.html','stage13.html','stage12.html','stage11.html']
+              for a in anchors:
+                  token='href="'+a+'"'
+                  if token in s:
+                      i=s.find(token)
+                      end=s.find('>',i)
+                      s=s[:end+1]+link+s[end+1:]
+                      break
+              else:
+                  raise SystemExit('No Stage 11–14 navigation anchor found')
+              p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/index.html
+          git diff --cached --quiet || git commit -m 'Integrate Stage 15 UI navigation'
+          git push
