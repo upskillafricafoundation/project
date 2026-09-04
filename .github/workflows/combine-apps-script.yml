@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'apps-script/*.gs'
-      - '.github/workflows/combine-apps-script.yml'
   workflow_dispatch:
 
 permissions:
@@ -27,8 +26,6 @@ jobs:
           tmp="apps-script/Code.gs.tmp"
           : > "$tmp"
 
-          # Setup contains the core system/router. Stage files contain later modules.
-          # Keep an explicit deterministic order so the generated file is reproducible.
           files=(
             "apps-script/Setup.gs"
             "apps-script/Stage3.gs"
@@ -57,36 +54,16 @@ jobs:
 
           mv "$tmp" "$out"
 
-      - name: Remove split source files
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f apps-script/Setup.gs \
-                apps-script/Stage3.gs \
-                apps-script/Stage7.gs \
-                apps-script/Stage7Router.gs \
-                apps-script/Stage8.gs \
-                apps-script/Stage10.gs \
-                apps-script/Stage11.gs \
-                apps-script/Stage12.gs \
-                apps-script/Stage13.gs \
-                apps-script/Stage14.gs \
-                apps-script/Stage15.gs \
-                apps-script/Stage16.gs \
-                apps-script/Stage17.gs \
-                apps-script/Stage18.gs \
-                apps-script/Stage19.gs
-
-      - name: Commit single-file Apps Script
+      - name: Commit combined Code.gs
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps-script/Code.gs apps-script/*.gs
+          git add apps-script/Code.gs
           if git diff --cached --quiet; then
-            echo "No changes to commit."
+            echo "Code.gs is already up to date."
             exit 0
           fi
-          git commit -m "Combine UAF M&E Apps Script into single Code.gs"
+          git commit -m "Generate single combined Apps Script Code.gs"
           git push
