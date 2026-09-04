@@ -1,0 +1,46 @@
+name: Integrate UAF Stage 14
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'apps-script/Stage14.gs'
+      - '.github/workflows/integrate-stage14.yml'
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate Stage 14 routes into Setup.gs
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('apps-script/Setup.gs')
+          s=p.read_text()
+          get="/* UAF_STAGE14_GET_ROUTING */if(stage14GetAction_(a))return stage14Get_(a,e);"
+          post="/* UAF_STAGE14_POST_ROUTING */if(stage14PostAction_(a))return stage14Post_(a,d);"
+          if 'UAF_STAGE14_GET_ROUTING' not in s:
+              anchor="if(a==='currentUser')return currentUser_();"
+              if anchor not in s: raise SystemExit('GET anchor not found')
+              s=s.replace(anchor,anchor+get,1)
+          if 'UAF_STAGE14_POST_ROUTING' not in s:
+              anchor="if(a==='currentUser')return currentUser_();"
+              # target the doPost occurrence, not the doGet occurrence
+              pos=s.find('function doPost(e)')
+              tail=s[pos:]
+              if anchor not in tail: raise SystemExit('POST anchor not found')
+              tail=tail.replace(anchor,anchor+post,1)
+              s=s[:pos]+tail
+          p.write_text(s)
+      - name: Validate integration markers
+        run: |
+          grep -q 'UAF_STAGE14_GET_ROUTING' apps-script/Setup.gs
+          grep -q 'UAF_STAGE14_POST_ROUTING' apps-script/Setup.gs
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps-script/Setup.gs
+          git diff --cached --quiet || git commit -m 'Integrate Stage 14 routing into Apps Script'
+          git push
