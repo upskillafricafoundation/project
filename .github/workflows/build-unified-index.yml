@@ -46,12 +46,17 @@ jobs:
               body = body_m.group(1)
               body = re.sub(r'\s+onclick\s*=\s*(["\'])(.*?)\1', r' data-uaf-action=\1\2\1', body, flags=re.I | re.S)
               script = '\n'.join(scripts)
-              # Scope module DOM queries to its ShadowRoot. ShadowRoot has
-              # querySelector/querySelectorAll, but not getElementById.
               script = re.sub(r'document\.getElementById\s*\(([^)]*)\)', r'root.querySelector("#"+CSS.escape(String(\1)))', script)
               script = script.replace('document.querySelectorAll(', 'root.querySelectorAll(')
               script = script.replace('document.querySelector(', 'root.querySelector(')
-              modules[name] = {'body': body, 'styles': '\n'.join(styles), 'scripts': script}
+              actions = re.findall(r'data-uaf-action=["\']\s*([A-Za-z_$][\w$]*)', body)
+              exports = []
+              for fn in dict.fromkeys(actions):
+                  if re.search(r'function\s+' + re.escape(fn) + r'\s*\(', script) or re.search(r'(?:const|let|var)\s+' + re.escape(fn) + r'\s*=', script):
+                      exports.append(fn)
+              export_code = '\n'.join('try{ns[' + json.dumps(fn) + ']=' + fn + '}catch(e){}' for fn in exports)
+              script = script + '\n' + export_code
+              modules[name] = {'body': body, 'styles': '\n'.join(styles), 'scripts': script, 'exports': exports}
 
           source = re.sub(r'<section id="workspace"[^>]*>.*?</section>', '<section id="workspace" class="module hidden"><div id="moduleRoot" aria-live="polite"></div></section>', source, flags=re.I | re.S)
           source = re.sub(r'\.module iframe\{[^}]*\}', '', source)
@@ -90,8 +95,7 @@ jobs:
             const content=document.createElement('div');content.className='uaf-native-module';content.innerHTML=String(m.body||'');shadow.appendChild(content);
             const ns={};UAF_NATIVE[m.id]=ns;
             try{
-              const code=String(m.scripts||'');
-              new Function('API_URL','root','ns',code)(window.API_URL,shadow,ns);
+              new Function('API_URL','root','ns',String(m.scripts||''))(window.API_URL,shadow,ns);
               bindActions(shadow,ns);
               $('status').textContent=m.label+' loaded';
             }catch(e){$('status').innerHTML='<div class="error">'+String(e.message||e)+'</div>';}
