@@ -1,0 +1,41 @@
+name: Integrate Stage 8 routing
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate Stage 8 into Setup.gs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apps-script/Setup.gs')
+          s = p.read_text()
+          get_old = "if(a==='currentUser')return currentUser_();/* UAF_STAGE7_GET_ROUTING */if(stage7GetAction_(a))return stage7Get_(a,e);permission_('read');"
+          get_new = "if(a==='currentUser')return currentUser_();/* UAF_STAGE7_GET_ROUTING */if(stage7GetAction_(a))return stage7Get_(a,e);/* UAF_STAGE8_GET_ROUTING */if(stage8GetAction_(a))return stage8Get_(a,e);permission_('read');"
+          post_old = "var d=JSON.parse(e.postData.contents||'{}'),a=d.action||'create';/* UAF_STAGE7_POST_ROUTING */if(stage7PostAction_(a))return stage7Post_(a,d);if(a==='currentUser')return currentUser_();"
+          post_new = "var d=JSON.parse(e.postData.contents||'{}'),a=d.action||'create';/* UAF_STAGE7_POST_ROUTING */if(stage7PostAction_(a))return stage7Post_(a,d);/* UAF_STAGE8_POST_ROUTING */if(stage8PostAction_(a))return stage8Post_(a,d);if(a==='currentUser')return currentUser_();"
+          changed = False
+          if '/* UAF_STAGE8_GET_ROUTING */' not in s:
+              if get_old not in s: raise SystemExit('Stage 7 GET anchor not found')
+              s = s.replace(get_old, get_new, 1); changed = True
+          if '/* UAF_STAGE8_POST_ROUTING */' not in s:
+              if post_old not in s: raise SystemExit('Stage 7 POST anchor not found')
+              s = s.replace(post_old, post_new, 1); changed = True
+          if changed: p.write_text(s)
+          PY
+      - name: Commit integration
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps-script/Setup.gs
+          git commit -m "Integrate Stage 8 routing into Apps Script"
+          git push
