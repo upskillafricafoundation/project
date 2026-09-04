@@ -1,0 +1,37 @@
+name: Integrate Stage 10 Reporting
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate Stage 10 routes
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('apps-script/Setup.gs')
+          s=p.read_text(encoding='utf-8')
+          marker='/* UAF_STAGE10_GET_ROUTING */'
+          if marker not in s:
+              anchor="if(a==='currentUser')return currentUser_();"
+              if anchor not in s: raise SystemExit('GET integration anchor not found')
+              s=s.replace(anchor,anchor+marker+"if(stage10GetAction_(a))return stage10Get_(a,e);")
+          marker2='/* UAF_STAGE10_POST_ROUTING */'
+          if marker2 not in s:
+              anchor2="if(a==='currentUser')return currentUser_();"
+              pos=s.find(anchor2,s.find('function doPost'))
+              if pos<0: raise SystemExit('POST integration anchor not found')
+              end=pos+len(anchor2)
+              s=s[:end]+marker2+"if(stage10PostAction_(a))return stage10Post_(a,d);"+s[end:]
+          p.write_text(s,encoding='utf-8')
+          if 'stage10GetAction_' not in s or 'stage10PostAction_' not in s: raise SystemExit('Stage 10 routing validation failed')
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps-script/Setup.gs
+          git diff --cached --quiet || (git commit -m 'Integrate Stage 10 reporting routes' && git push)
