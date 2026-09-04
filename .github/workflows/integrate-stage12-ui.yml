@@ -1,0 +1,44 @@
+name: Integrate Stage 12 UI
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/stage12.html'
+      - '.github/workflows/integrate-stage12-ui.yml'
+permissions:
+  contents: write
+jobs:
+  integrate-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate Stage 12 navigation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('frontend/index.html'); s=p.read_text()
+          if 'stage12.html' not in s:
+              marker="stage11.html"
+              i=s.find(marker)
+              if i<0: raise SystemExit('Stage 11 navigation not found')
+              end=s.find('>',i)
+              if end<0: raise SystemExit('Stage 11 navigation element not found')
+              tag_start=s.rfind('<button',0,i)
+              if tag_start<0: raise SystemExit('Stage 11 button not found')
+              tag_end=s.find('</button>',end)
+              if tag_end<0: raise SystemExit('Stage 11 button close not found')
+              tag_end+=len('</button>')
+              add=s[tag_start:tag_end]+"<button onclick=\"window.location.href='stage12.html'\">Procurement & Assets</button>"
+              s=s[:tag_start]+add+s[tag_end:]
+          p.write_text(s)
+          PY
+          test -f frontend/stage12.html
+          grep -q 'stage12.html' frontend/index.html
+      - name: Commit UI integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/index.html
+          git diff --cached --quiet || git commit -m 'Add Stage 12 procurement and assets navigation'
+          git push
