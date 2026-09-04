@@ -19,7 +19,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p apps-script
           cat \
             apps-script/Setup.gs \
             apps-script/Stage3.gs \
@@ -43,58 +42,52 @@ jobs:
           from pathlib import Path
           p = Path('apps-script/Code.gs')
           s = p.read_text(encoding='utf-8')
-
-          # Remove known cross-method routing mistakes.
           s = s.replace("/* UAF_STAGE11_POST_ROUTING */if(stage11PostAction_(a))return stage11Post_(a,d);", "")
           s = s.replace("/* UAF_STAGE10_GET_ROUTING */if(stage10GetAction_(a))return stage10Get_(a,e);", "")
 
-          # Add Stage 14-19 GET routing before Stage 13.
           get_anchor = "if(a==='currentUser')return currentUser_();"
           get_routes = (
-              "if(a==='currentUser')return currentUser_();"
-              "/* UAF_STAGE19_GET_ROUTING */if(stage19GetAction_(a))return stage19Get_(a,e);"
-              "/* UAF_STAGE18_GET_ROUTING */if(stage18GetAction_(a))return stage18Get_(a,e);"
-              "/* UAF_STAGE17_GET_ROUTING */if(stage17GetAction_(a))return stage17Get_(a,e);"
-              "/* UAF_STAGE16_GET_ROUTING */if(stage16GetAction_(a))return stage16Get_(a,e);"
-              "/* UAF_STAGE15_GET_ROUTING */if(stage15GetAction_(a))return stage15Get_(a,e);"
-              "/* UAF_STAGE14_GET_ROUTING */if(stage14GetAction_(a))return stage14Get_(a,e);"
+              get_anchor
+              + "/* UAF_STAGE19_GET_ROUTING */if(stage19GetAction_(a))return stage19Get_(a,e);"
+              + "/* UAF_STAGE18_GET_ROUTING */if(stage18GetAction_(a))return stage18Get_(a,e);"
+              + "/* UAF_STAGE17_GET_ROUTING */if(stage17GetAction_(a))return stage17Get_(a,e);"
+              + "/* UAF_STAGE16_GET_ROUTING */if(stage16GetAction_(a))return stage16Get_(a,e);"
+              + "/* UAF_STAGE15_GET_ROUTING */if(stage15GetAction_(a))return stage15Get_(a,e);"
+              + "/* UAF_STAGE14_GET_ROUTING */if(stage14GetAction_(a))return stage14Get_(a,e);"
           )
           if "/* UAF_STAGE19_GET_ROUTING */" not in s:
               s = s.replace(get_anchor, get_routes, 1)
 
-          # Add Stage 14-19 POST routing before Stage 13.
-          post_anchor = "if(a==='currentUser')return currentUser_();"
-          post_routes = (
-              "if(a==='currentUser')return currentUser_();"
-              "/* UAF_STAGE19_POST_ROUTING */if(stage19PostAction_(a))return stage19Post_(a,d);"
-              "/* UAF_STAGE18_POST_ROUTING */if(stage18PostAction_(a))return stage18Post_(a,d);"
-              "/* UAF_STAGE17_POST_ROUTING */if(stage17PostAction_(a))return stage17Post_(a,d);"
-              "/* UAF_STAGE16_POST_ROUTING */if(stage16PostAction_(a))return stage16Post_(a,d);"
-              "/* UAF_STAGE15_POST_ROUTING */if(stage15PostAction_(a))return stage15Post_(a,d);"
-              "/* UAF_STAGE14_POST_ROUTING */if(stage14PostAction_(a))return stage14Post_(a,d);"
-          )
-          # Replace the second occurrence (the one in doPost).
-          pos = s.find(post_anchor)
-          if pos >= 0:
-              pos2 = s.find(post_anchor, pos + len(post_anchor))
-              if pos2 >= 0 and "/* UAF_STAGE19_POST_ROUTING */" not in s:
-                  s = s[:pos2] + post_routes + s[pos2 + len(post_anchor):]
+          # Locate doPost specifically, then add the missing Stage 14-19 POST routes.
+          do_post = s.find('function doPost(e)')
+          if do_post >= 0 and "/* UAF_STAGE19_POST_ROUTING */" not in s:
+              anchor_pos = s.find(get_anchor, do_post)
+              if anchor_pos >= 0:
+                  post_routes = (
+                      get_anchor
+                      + "/* UAF_STAGE19_POST_ROUTING */if(stage19PostAction_(a))return stage19Post_(a,d);"
+                      + "/* UAF_STAGE18_POST_ROUTING */if(stage18PostAction_(a))return stage18Post_(a,d);"
+                      + "/* UAF_STAGE17_POST_ROUTING */if(stage17PostAction_(a))return stage17Post_(a,d);"
+                      + "/* UAF_STAGE16_POST_ROUTING */if(stage16PostAction_(a))return stage16Post_(a,d);"
+                      + "/* UAF_STAGE15_POST_ROUTING */if(stage15PostAction_(a))return stage15Post_(a,d);"
+                      + "/* UAF_STAGE14_POST_ROUTING */if(stage14PostAction_(a))return stage14Post_(a,d);"
+                  )
+                  s = s[:anchor_pos] + post_routes + s[anchor_pos + len(get_anchor):]
 
-          # Repair Stage 10 row conversion: rows_ expects a sheet name, not a 2-D array.
           old10 = "function stage10Rows_(sheet){var sh=SpreadsheetApp.getActive().getSheetByName(sheet);if(!sh||sh.getLastRow()<2)return[];return rows_(sh.getDataRange().getValues());}"
           new10 = "function stage10Rows_(sheet){var sh=SpreadsheetApp.getActive().getSheetByName(sheet);if(!sh||sh.getLastRow()<2)return[];var v=sh.getDataRange().getValues(),h=v[0];return v.slice(1).map(function(r){var o={};h.forEach(function(k,i){o[k]=r[i];});return o;});}"
           s = s.replace(old10, new10)
 
-          # Repair Stage 11 project visibility: blank Project ID records are visible only when no project filter is supplied;
-          # project-filtered records must belong to the requested project and be accessible to the current user.
           old11 = "function stage11Visible_(name,projectId){return rows_(name).filter(function(x){return !projectId||projectAllowed_(projectId)?projectAllowed_(x['Project ID']||projectId):false;});}"
           new11 = "function stage11Visible_(name,projectId){return rows_(name).filter(function(x){var rowPid=String(x['Project ID']||'').trim();if(projectId){return rowPid===String(projectId).trim()&&projectAllowed_(rowPid);}return !rowPid||projectAllowed_(rowPid);});}"
           s = s.replace(old11, new11)
-
           p.write_text(s, encoding='utf-8')
 
       - name: Validate JavaScript syntax
-        run: node --check apps-script/Code.gs
+        shell: bash
+        run: |
+          cp apps-script/Code.gs /tmp/Code.js
+          node --check /tmp/Code.js
 
       - name: Remove split Apps Script sources
         shell: bash
