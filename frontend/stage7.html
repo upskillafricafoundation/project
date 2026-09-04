@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAF Digital M&E/L — Stage 7</title>
+<script src="config.js"></script>
+<style>
+:root{--blue:#123b8e;--red:#d72638;--ink:#172033;--muted:#687386;--bg:#f4f6f9;--card:#fff;--line:#e6e9ef}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--ink)}header{background:linear-gradient(110deg,var(--blue),#1d4fae);color:#fff;padding:20px 24px;position:sticky;top:0;z-index:5}header b{font-size:20px}header div{opacity:.9;margin-top:5px;font-size:13px}main{max-width:1450px;margin:auto;padding:20px}nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}button{border:0;border-radius:8px;padding:10px 13px;background:var(--blue);color:#fff;cursor:pointer}.secondary{background:#687386}.danger{background:var(--red)}section{display:none}.active{display:block}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.card{background:var(--card);border-radius:13px;padding:18px;box-shadow:0 2px 8px #0001;margin-bottom:16px}.num{font-size:30px;font-weight:700;margin-top:6px}.label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.muted{color:var(--muted)}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}input,select,textarea{padding:10px;border:1px solid #ccd2dc;border-radius:7px;width:100%;margin:4px 0}textarea{min-height:80px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}.scroll{overflow:auto}.pill{display:inline-block;padding:4px 8px;border-radius:12px;background:#eef2f7;font-size:12px;margin:2px}.rag-Green{border-left:4px solid #238636}.rag-Amber{border-left:4px solid #d29922}.rag-Red{border-left:4px solid var(--red)}.bar{height:9px;background:#e6e9ef;border-radius:8px;overflow:hidden}.fill{height:100%;background:var(--red)}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:850px){.two{grid-template-columns:1fr}}.notice{padding:12px;border-radius:9px;background:#eef2f7;margin-bottom:12px}.small{font-size:12px}
+</style>
+</head>
+<body>
+<header><b>Upskill Africa Foundation</b><div>Digital Monitoring, Evaluation & Learning System · Stage 7 — Strategic Intelligence</div></header>
+<main>
+<nav>
+<button onclick="show('dashboard');loadDashboard()">Dashboard</button>
+<button onclick="show('portfolio');loadPortfolio()">Portfolio Intelligence</button>
+<button onclick="show('compliance');loadCompliance()">Donor Compliance</button>
+<button onclick="show('learning');loadLearning()">Learning & Adaptation</button>
+<button onclick="show('risks');loadRisks()">Risk Register</button>
+<button onclick="show('decisions');loadDecisions()">Management Decisions</button>
+<button onclick="show('deadlines');loadDeadlines()">Reporting Calendar</button>
+<button onclick="show('results');loadResults()">Results Framework</button>
+<button class="secondary" onclick="setup7()">Initialize Stage 7</button>
+</nav>
+<div id="status" class="muted"></div>
+
+<section id="dashboard" class="active">
+<h2>Executive M&E Intelligence</h2>
+<div class="grid">
+<div class="card"><div class="label">Active Projects</div><div class="num" id="activeProjects">0</div></div>
+<div class="card"><div class="label">Beneficiaries</div><div class="num" id="beneficiaries">0</div></div>
+<div class="card"><div class="label">OOSC</div><div class="num" id="oosc">0</div></div>
+<div class="card"><div class="label">Retention</div><div class="num" id="retention">0%</div></div>
+<div class="card"><div class="label">KPI On Track</div><div class="num" id="kpi">0%</div></div>
+<div class="card"><div class="label">Reports Due / 30 Days</div><div class="num" id="due30">0</div></div>
+<div class="card"><div class="label">Overdue Reports</div><div class="num" id="overdue">0</div></div>
+<div class="card"><div class="label">Open Challenges</div><div class="num" id="challenges">0</div></div>
+</div>
+<div class="two"><div class="card"><h3>Portfolio Position</h3><div id="portfolioSummary"></div></div><div class="card"><h3>Learning Position</h3><div id="learningSummary"></div></div></div>
+<div class="card"><h3>Immediate Management Attention</h3><div id="attention"></div></div>
+</section>
+
+<section id="portfolio"><h2>Portfolio Intelligence</h2><div class="card"><div id="portfolioTable"></div></div></section>
+<section id="compliance"><h2>Donor Compliance</h2><div class="card"><div id="complianceTable"></div></div></section>
+<section id="learning"><h2>Learning & Adaptation</h2><div class="card"><div id="learningTable"></div></div></section>
+<section id="risks"><h2>Risk Register</h2><div class="card"><div class="formgrid"><input id="riskProject" placeholder="Project ID"><input id="risk" placeholder="Risk *"><input id="riskCat" placeholder="Category"><select id="riskLike"><option>Low</option><option>Medium</option><option>High</option></select><select id="riskImpact"><option>Low</option><option>Medium</option><option>High</option></select><input id="riskScore" type="number" placeholder="Risk score"><input id="riskOwner" placeholder="Owner"><input id="riskReview" type="date"></div><textarea id="riskMitigation" placeholder="Mitigation"></textarea><button onclick="createRisk()">Record Risk</button></div><div class="card"><div id="riskTable"></div></div></section>
+<section id="decisions"><h2>Management Decisions</h2><div class="card"><div class="formgrid"><input id="decProject" placeholder="Project ID"><input id="decDate" type="date"><input id="dec" placeholder="Decision *"><input id="decOwner" placeholder="Responsible person"><input id="decDue" type="date"><select id="decStatus"><option>Open</option><option>In Progress</option><option>Completed</option></select></div><textarea id="decEvidence" placeholder="Evidence supporting decision"></textarea><textarea id="decReason" placeholder="Reason"></textarea><button onclick="createDecision()">Record Decision</button></div><div class="card"><div id="decisionTable"></div></div></section>
+<section id="deadlines"><h2>Reporting Calendar</h2><div class="card"><div id="deadlineTable"></div></div></section>
+<section id="results"><h2>Results Framework</h2><div class="card"><div id="resultsTable"></div></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);function show(id){document.querySelectorAll('section').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');$('status').textContent=''}
+async function api(q,opt){if(!API_URL||API_URL==='YOUR_APPS_SCRIPT_EXEC_URL')throw Error('Set the Apps Script /exec URL in frontend/config.js.');let r=await fetch(API_URL+q,opt);let d=await r.json();if(!d.ok)throw Error(d.error||'Request failed');return d}
+function post(body){return api('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}function msg(x){$('status').textContent=x}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function table(rows,cols){if(!rows?.length)return '<div class="muted">No records.</div>';return '<div class="scroll"><table><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr>'+rows.map(r=>'<tr>'+cols.map(c=>'<td>'+esc(r[c])+'</td>').join('')+'</tr>').join('')+'</table></div>'}
+async function setup7(){try{let r=await post({action:'stage7Setup'});msg(r.message||'Stage 7 initialized.')}catch(e){msg(e.message)}}
+async function loadDashboard(){try{let r=await api('?action=stage7'),p=r.intelligence.portfolio,l=r.intelligence.learning,c=r.intelligence.compliance;['activeProjects','beneficiaries','oosc','retention','kpi','due30','overdue','challenges'].forEach(x=>$(x).textContent='0');$('activeProjects').textContent=p.activeProjects;$('beneficiaries').textContent=p.beneficiaries;$('oosc').textContent=p.oosc;$('retention').textContent=p.retentionRate+'%';$('kpi').textContent=p.kpiPerformanceRate+'%';$('due30').textContent=p.reportsDue30Days;$('overdue').textContent=p.reportsOverdue;$('challenges').textContent=p.openChallenges;$('portfolioSummary').innerHTML='<p><b>'+p.grants+'</b> grants · <b>'+p.indicators+'</b> indicators</p><p><b>'+p.kpisOnTrack+'</b> of '+p.indicators+' KPIs are at or above 70%.</p><p><b>'+p.openDonorRequirements+'</b> open donor requirements.</p>';$('learningSummary').innerHTML='<p><b>'+l.totalLessons+'</b> lessons recorded · <b>'+l.totalAdaptations+'</b> adaptations.</p><p><b>'+l.openQuestions+'</b> learning questions remain open.</p>';$('attention').innerHTML=(p.reportsOverdue?'<div class="notice rag-Red"><b>Reporting:</b> '+p.reportsOverdue+' overdue reporting deadline(s).</div>':'')+(p.openDonorRequirements?'<div class="notice rag-Amber"><b>Compliance:</b> '+p.openDonorRequirements+' open donor requirement(s).</div>':'')+(p.openChallenges?'<div class="notice rag-Amber"><b>Program:</b> '+p.openChallenges+' open challenge(s).</div>':'')+(!p.reportsOverdue&&!p.openDonorRequirements&&!p.openChallenges?'<div class="notice">No immediate Stage 7 exception is currently detected.</div>':'')}catch(e){msg(e.message)}}
+async function loadPortfolio(){try{let r=await api('?action=portfolioIntelligence');let p=r.data;$('portfolioTable').innerHTML='<div class="grid"><div class="card"><div class="label">Active</div><div class="num">'+p.activeProjects+'</div></div><div class="card"><div class="label">Retention</div><div class="num">'+p.retentionRate+'%</div></div><div class="card"><div class="label">KPI On Track</div><div class="num">'+p.kpiPerformanceRate+'%</div></div><div class="card"><div class="label">Lessons</div><div class="num">'+p.lessonsRecorded+'</div></div></div>'}catch(e){msg(e.message)}}
+async function loadCompliance(){try{let r=await api('?action=donorCompliance');$('complianceTable').innerHTML=table(r.data,['Grant ID','Project ID','Requirement','Due Date','Evidence Status','Submission Status','Owner','Days Remaining','Compliance RAG','Notes'])}catch(e){msg(e.message)}}
+async function loadLearning(){try{let r=await api('?action=learningIntelligence'),d=r.data;let rows=(d.lessons||[]).concat((d.adaptations||[]).map(x=>({'Project ID':x['Project ID'],Date:x.Date,Learning:'ADAPTATION: '+x.Adaptation,Evidence:x.Evidence,'What Worked':'','What Did Not Work':x.Problem,Recommendation:x['Expected Result'], 'Recorded By':x['Responsible Person']})));$('learningTable').innerHTML=table(rows,['Project ID','Date','Learning','Evidence','What Worked','What Did Not Work','Recommendation','Recorded By'])}catch(e){msg(e.message)}}
+async function loadRisks(){try{let r=await api('?action=risks');$('riskTable').innerHTML=table(r.data,['Risk ID','Project ID','Date Identified','Risk','Category','Likelihood','Impact','Risk Score','Mitigation','Owner','Review Date','Status'])}catch(e){msg(e.message)}}
+async function loadDecisions(){try{let r=await api('?action=decisions');$('decisionTable').innerHTML=table(r.data,['Decision ID','Project ID','Date','Decision','Evidence','Reason','Responsible Person','Due Date','Status','Outcome'])}catch(e){msg(e.message)}}
+async function loadDeadlines(){try{let r=await api('?action=deadlines');$('deadlineTable').innerHTML=table(r.data,['Deadline ID','Grant ID','Project ID','Report Type','Period Start','Period End','Due Date','Responsible Person','Status','Submitted Date','Report URL','Notes'])}catch(e){msg(e.message)}}
+async function loadResults(){try{let r=await api('?action=resultsFramework');$('resultsTable').innerHTML=table(r.data,['Result ID','Project ID','Level','Parent Result ID','Result Statement','Indicator ID','Assumption','Means of Verification','Status'])}catch(e){msg(e.message)}}
+async function createRisk(){try{let d={'Project ID':$('riskProject').value,'Date Identified':new Date().toISOString().slice(0,10),Risk:$('risk').value,Category:$('riskCat').value,Likelihood:$('riskLike').value,Impact:$('riskImpact').value,'Risk Score':$('riskScore').value,Mitigation:$('riskMitigation').value,Owner:$('riskOwner').value,'Review Date':$('riskReview').value,Status:'Open'};let r=await post({action:'createStage7Record',entity:'risk',data:d});msg('Risk recorded: '+r.id);loadRisks()}catch(e){msg(e.message)}}
+async function createDecision(){try{let d={'Project ID':$('decProject').value,Date:$('decDate').value||new Date().toISOString().slice(0,10),Decision:$('dec').value,Evidence:$('decEvidence').value,Reason:$('decReason').value,'Responsible Person':$('decOwner').value,'Due Date':$('decDue').value,Status:$('decStatus').value,Outcome:''};let r=await post({action:'createStage7Record',entity:'decision',data:d});msg('Decision recorded: '+r.id);loadDecisions()}catch(e){msg(e.message)}}
+loadDashboard();
+</script>
+</body></html>
