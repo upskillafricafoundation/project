@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAF Digital M&E/L — Unified System</title>
+<script src="config.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f9;color:#172033}header{background:#123b8e;color:#fff;padding:16px 22px;position:sticky;top:0;z-index:20}.brand{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}.brand b{font-size:19px}.brand small{opacity:.85}main{max-width:1500px;margin:auto;padding:18px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px}.toolbar button{border:0;border-radius:7px;padding:10px 13px;background:#fff;color:#123b8e;cursor:pointer;font-weight:600;box-shadow:0 1px 4px #0002}.toolbar button.active{background:#d72638;color:#fff}.status{margin:8px 0 14px;color:#687386}.module{background:#fff;border-radius:12px;box-shadow:0 2px 8px #0001;overflow:hidden}.home{padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.card{background:#fff;border-radius:12px;padding:17px;box-shadow:0 2px 8px #0001}.num{font-size:30px;font-weight:700;margin-top:7px}.muted{color:#687386}.error{padding:20px;background:#fff3f3;color:#9d1c28;border-left:4px solid #d72638}.hidden{display:none!important}@media(max-width:700px){header{padding:13px}.brand b{font-size:16px}main{padding:10px}.toolbar button{font-size:12px;padding:8px 10px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><div><b>Upskill Africa Foundation</b><br><small>Unified Digital Monitoring, Evaluation & Learning System</small></div><div id="userStatus"><small>Connecting…</small></div></div></header>
+<main>
+<div class="toolbar" id="nav"></div>
+<div id="status" class="status">Loading system…</div>
+<section id="home" class="home">
+<div class="grid">
+<div class="card"><div class="muted">Active Projects</div><div class="num" id="projects">0</div></div>
+<div class="card"><div class="muted">Beneficiaries</div><div class="num" id="beneficiaries">0</div></div>
+<div class="card"><div class="muted">Indicators</div><div class="num" id="indicators">0</div></div>
+<div class="card"><div class="muted">Completed</div><div class="num" id="completed">0</div></div>
+<div class="card"><div class="muted">Open Alerts</div><div class="num" id="alerts">0</div></div>
+</div>
+<div class="card" style="margin-top:16px"><h2>UAF M&E/L Unified Workspace</h2><p class="muted">All M&E/L stages are accessed from this single interface. Select a module above without leaving the main workspace.</p><p><b>Architecture:</b> GitHub Pages frontend → Apps Script API → Google Sheets/Drive.</p></div>
+</section>
+<section id="workspace" class="module hidden"><div id="moduleRoot" aria-live="polite"></div></section>
+</main>
+<!-- UAF_APP_SCRIPT_START -->
+<!-- UAF_APP_SCRIPT_END -->
+</body>
+</html>
