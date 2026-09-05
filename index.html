@@ -5,12 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Upskill Africa Foundation — Unified Digital Monitoring, Evaluation & Learning System">
 <title>UAF Digital M&E/L</title>
-<style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f4f6f9}
-iframe{display:block;width:100%;height:100%;border:0}
-</style>
+<script>
+(async function(){
+  try {
+    const response = await fetch('frontend/index.html', {cache:'no-store'});
+    if (!response.ok) throw new Error('Unable to load the UAF application (' + response.status + ').');
+    let html = await response.text();
+    html = html.replace(/<head([^>]*)>/i, '<head$1><base href="frontend/">');
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (error) {
+    document.body.innerHTML = '<main style="font-family:Arial,sans-serif;padding:40px"><h1>UAF Digital M&E/L</h1><p>Application loading failed.</p><p style="color:#b42318">'+String(error.message||error)+'</p><p>Please refresh the page.</p></main>';
+  }
+})();
+</script>
 </head>
 <body>
-<iframe src="frontend/index.html" title="UAF Digital Monitoring, Evaluation & Learning System"></iframe>
+<noscript><main style="font-family:Arial,sans-serif;padding:40px"><h1>UAF Digital M&E/L</h1><p>JavaScript is required to run this application.</p></main></noscript>
 </body>
 </html>
