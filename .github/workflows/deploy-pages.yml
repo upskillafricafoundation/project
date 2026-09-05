@@ -4,8 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'frontend/index.html'
-      - 'frontend/config.js'
+      - 'frontend/**'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -28,15 +27,19 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Verify generated unified frontend
+      - name: Verify unified frontend
         shell: bash
         run: |
           test -f frontend/index.html
           test -f frontend/config.js
           ! grep -qi '<iframe' frontend/index.html
           grep -q 'UAF_NATIVE' frontend/index.html
-          grep -q 'stage19' frontend/index.html
-          echo "Generated unified frontend verified."
+          for f in frontend/stage*.html; do
+            test -f "$f"
+            base=$(basename "$f")
+            grep -q "$base" frontend/index.html || { echo "Missing embedded module: $base"; exit 1; }
+          done
+          echo "Unified frontend and all stage source modules verified."
 
       - name: Prepare Pages artifact
         shell: bash
