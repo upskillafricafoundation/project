@@ -25,88 +25,46 @@ jobs:
         run: |
           from pathlib import Path
           import json, re
-
-          root = Path('frontend')
-          template = root / 'index.template.html'
-          base = root / 'index.html'
+          root = Path('frontend'); template = root / 'index.template.html'; base = root / 'index.html'
           source = template.read_text(encoding='utf-8')
-
           stage_files = sorted(root.glob('stage*.html'), key=lambda p: int(re.search(r'stage(\d+)\.html$', p.name, re.I).group(1)))
-          files = [root / 'executive.html'] + stage_files
-          modules = []
-
+          files = [root / 'executive.html'] + stage_files; modules = []
           for p in files:
-              raw = p.read_text(encoding='utf-8')
-              body_m = re.search(r'<body[^>]*>(.*)</body>', raw, re.I | re.S)
-              if not body_m:
-                  continue
-              styles = re.findall(r'<style[^>]*>(.*?)</style>', raw, re.I | re.S)
-              scripts = re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', raw, re.I | re.S)
-              body = body_m.group(1)
-              body = re.sub(r'\s+onclick\s*=\s*(["\'])(.*?)\1', r' data-uaf-action=\1\2\1', body, flags=re.I | re.S)
+              raw = p.read_text(encoding='utf-8'); body_m = re.search(r'<body[^>]*>(.*)</body>', raw, re.I | re.S)
+              if not body_m: continue
+              styles = re.findall(r'<style[^>]*>(.*?)</style>', raw, re.I | re.S); scripts = re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', raw, re.I | re.S)
+              body = re.sub(r'\s+onclick\s*=\s*(["\'])(.*?)\1', r' data-uaf-action=\1\2\1', body_m.group(1), flags=re.I | re.S)
               script = '\n'.join(scripts)
               script = re.sub(r'document\.getElementById\s*\(([^)]*)\)', r'root.querySelector("#"+CSS.escape(String(\1)))', script)
-              script = script.replace('document.querySelectorAll(', 'root.querySelectorAll(')
-              script = script.replace('document.querySelector(', 'root.querySelector(')
-
-              actions = re.findall(r'data-uaf-action=["\']\s*([A-Za-z_$][\w$]*)', body)
-              exports = []
+              script = script.replace('document.querySelectorAll(', 'root.querySelectorAll(').replace('document.querySelector(', 'root.querySelector(')
+              actions = re.findall(r'data-uaf-action=["\']\s*([A-Za-z_$][\w$]*)', body); exports=[]
               for fn in dict.fromkeys(actions):
-                  if re.search(r'function\s+' + re.escape(fn) + r'\s*\(', script) or re.search(r'(?:const|let|var)\s+' + re.escape(fn) + r'\s*=', script):
-                      exports.append(fn)
-              script += '\n' + '\n'.join('try{ns[' + json.dumps(fn) + ']=' + fn + '}catch(e){}' for fn in exports)
-
-              if p.name.lower() == 'executive.html':
-                  label, group, order = 'Executive Intelligence', 'executive', 0
+                  if re.search(r'function\s+'+re.escape(fn)+r'\s*\(',script) or re.search(r'(?:const|let|var)\s+'+re.escape(fn)+r'\s*=',script): exports.append(fn)
+              script += '\n' + '\n'.join('try{ns['+json.dumps(fn)+']='+fn+'}catch(e){}' for fn in exports)
+              if p.name.lower()=='executive.html': label,group,order='Executive Intelligence','executive',0
               else:
-                  n = int(re.search(r'stage(\d+)\.html$', p.name, re.I).group(1))
-                  label, group, order = f'Stage {n}', 'stage', n
-              modules.append({'id': p.stem, 'file': p.name, 'label': label, 'group': group, 'order': order, 'body': body, 'styles': '\n'.join(styles), 'scripts': script, 'exports': exports})
-
-          app_script = '''<script>
-          const $=id=>document.getElementById(id);
-          const UAF_NATIVE={};
-          const modules=__MODULES__;
-          const coreNav={id:'core',label:'Core M&E/L',group:'core',order:-1};
-          function buildNav(){
-            const all=[coreNav].concat(modules);
-            $('nav').innerHTML=all.map(m=>'<button id="nav-'+m.id+'" onclick="openModule(\\''+m.id+'\\')">'+m.label+'</button>').join('');
-          }
-          function setActive(id){[coreNav].concat(modules).forEach(m=>{const b=$('nav-'+m.id);if(b)b.classList.toggle('active',m.id===id)})}
-          function bindActions(shadow,ns){shadow.querySelectorAll('[data-uaf-action]').forEach(el=>{const code=el.getAttribute('data-uaf-action')||'';el.addEventListener('click',event=>{try{new Function('event','ns','openModule','with(ns){'+code+'}')(event,ns,openModule)}catch(e){$('status').textContent=e.message||String(e)}})})}
-          async function openModule(id){
-            if(id==='core'){setActive(id);$('home').classList.remove('hidden');$('workspace').classList.add('hidden');$('status').textContent='Unified home dashboard';loadDashboard();return;}
-            const m=modules.find(x=>x.id===id);if(!m)return;setActive(id);$('home').classList.add('hidden');$('workspace').classList.remove('hidden');$('status').textContent='Opening '+m.label+'…';
-            const host=$('moduleRoot');host.replaceChildren();const shadow=host.attachShadow({mode:'open'});
-            const style=document.createElement('style');style.textContent=String(m.styles||'');shadow.appendChild(style);
-            const content=document.createElement('div');content.className='uaf-native-module';content.innerHTML=String(m.body||'');shadow.appendChild(content);
-            const ns={};UAF_NATIVE[m.id]=ns;
-            try{new Function('API_URL','root','ns','openModule',String(m.scripts||''))(window.API_URL,shadow,ns,openModule);bindActions(shadow,ns);$('status').textContent=m.label+' loaded'}catch(e){$('status').innerHTML='<div class="error">'+String(e.message||e)+'</div>'}
-          }
-          async function api(q){if(!API_URL||API_URL==='YOUR_APPS_SCRIPT_EXEC_URL')throw Error('Apps Script /exec URL is not configured.');const r=await fetch(API_URL+q);if(!r.ok)throw Error('API request failed: '+r.status);return r.json()}
-          async function loadDashboard(){try{const d=await api('?action=dashboard');$('projects').textContent=d.projects||0;$('beneficiaries').textContent=d.beneficiaries||0;$('indicators').textContent=d.indicators||0;$('completed').textContent=d.completed||0;$('alerts').textContent=d.alerts||0;$('status').textContent='Dashboard connected to Apps Script API'}catch(e){$('status').textContent=e.message}}
-          async function loadUser(){try{const u=await api('?action=currentUser');$('userStatus').innerHTML=u&&u.authorized?'<small>Signed in · '+String(u.user?.Name||u.email||'Authorized user')+'</small>':'<small>Access not authorized</small>'}catch(e){$('userStatus').innerHTML='<small>API connection unavailable</small>'}}
-          buildNav();openModule('core');loadUser();
-          </script>'''
-
-          payload = json.dumps(modules, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
-          app_script = app_script.replace('__MODULES__', payload)
-          source = source.replace('<!-- UAF_APP_SCRIPT_START -->\n<!-- UAF_APP_SCRIPT_END -->', app_script)
-          base.write_text(source, encoding='utf-8')
+                  n=int(re.search(r'stage(\d+)\.html$',p.name,re.I).group(1)); label,group,order=f'Stage {n}','stage',n
+              modules.append({'id':p.stem,'file':p.name,'label':label,'group':group,'order':order,'body':body,'styles':'\n'.join(styles),'scripts':script,'exports':exports})
+          app_script='''<script>
+const $=id=>document.getElementById(id);const UAF_NATIVE={};const modules=__MODULES__;const coreNav={id:'core',label:'Core M&E/L',group:'core',order:-1};
+function buildNav(){const all=[coreNav].concat(modules);$('nav').innerHTML=all.map(m=>'<button id="nav-'+m.id+'" onclick="openModule(\\''+m.id+'\\')">'+m.label+'</button>').join('')}
+function setActive(id){[coreNav].concat(modules).forEach(m=>{const b=$('nav-'+m.id);if(b)b.classList.toggle('active',m.id===id)})}
+function bindActions(shadow,ns){shadow.querySelectorAll('[data-uaf-action]').forEach(el=>{const code=el.getAttribute('data-uaf-action')||'';el.addEventListener('click',event=>{try{new Function('event','ns','openModule','with(ns){'+code+'}')(event,ns,openModule)}catch(e){$('status').textContent=e.message||String(e)}})})}
+async function openModule(id){if(id==='core'){setActive(id);$('home').classList.remove('hidden');$('workspace').classList.add('hidden');$('status').textContent='Unified home dashboard';loadDashboard();return}const m=modules.find(x=>x.id===id);if(!m)return;setActive(id);$('home').classList.add('hidden');$('workspace').classList.remove('hidden');$('status').textContent='Opening '+m.label+'…';const host=$('moduleRoot');host.replaceChildren();const shadow=host.attachShadow({mode:'open'});const style=document.createElement('style');style.textContent=String(m.styles||'');shadow.appendChild(style);const content=document.createElement('div');content.className='uaf-native-module';content.innerHTML=String(m.body||'');shadow.appendChild(content);const ns={};UAF_NATIVE[m.id]=ns;try{new Function('API_URL','root','ns','openModule',String(m.scripts||''))(window.API_URL,shadow,ns,openModule);bindActions(shadow,ns);$('status').textContent=m.label+' loaded'}catch(e){$('status').innerHTML='<div class="error">'+String(e.message||e)+'</div>'}}
+async function api(q){if(!API_URL||API_URL==='YOUR_APPS_SCRIPT_EXEC_URL')throw Error('Apps Script /exec URL is not configured.');const r=await fetch(API_URL+q);if(!r.ok)throw Error('API request failed: '+r.status);return r.json()}
+async function loadDashboard(){try{const d=await api('?action=dashboard');$('projects').textContent=d.projects||0;$('beneficiaries').textContent=d.beneficiaries||0;$('indicators').textContent=d.indicators||0;$('completed').textContent=d.completed||0;$('alerts').textContent=d.alerts||0;$('status').textContent='Dashboard connected to Apps Script API'}catch(e){$('status').textContent=e.message}}
+async function loadUser(){try{const u=await api('?action=currentUser');$('userStatus').innerHTML=u&&u.authorized?'<small>Signed in · '+String(u.user?.Name||u.email||'Authorized user')+'</small>':'<small>Access not authorized</small>'}catch(e){$('userStatus').innerHTML='<small>API connection unavailable</small>'}}
+buildNav();openModule('core');loadUser();
+</script>'''
+          payload=json.dumps(modules,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c'); source=source.replace('<!-- UAF_APP_SCRIPT_START -->\n<!-- UAF_APP_SCRIPT_END -->',app_script.replace('__MODULES__',payload)); base.write_text(source,encoding='utf-8')
 
       - name: Validate generated frontend
         shell: python
         run: |
           from pathlib import Path
-          import re
-          p=Path('frontend/index.html')
-          s=p.read_text(encoding='utf-8')
-          assert 'UAF_NATIVE' in s
-          assert 'attachShadow' in s
-          assert '<iframe' not in s.lower()
-          assert 'JSON.parse(' not in s, 'Generated index must embed module data as a native JS object, not a doubly encoded JSON string'
-          for f in [Path('frontend/executive.html')] + sorted(Path('frontend').glob('stage*.html')):
-              assert f.name in s, f'Embedded module missing: {f.name}'
+          p=Path('frontend/index.html'); s=p.read_text(encoding='utf-8')
+          assert 'UAF_NATIVE' in s and 'attachShadow' in s and '<iframe' not in s.lower() and 'JSON.parse(' not in s
+          for f in [Path('frontend/executive.html')] + sorted(Path('frontend').glob('stage*.html')): assert f.name in s, f'Embedded module missing: {f.name}'
           print('Validated embedded modules successfully.')
 
       - name: Commit generated index
@@ -115,5 +73,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add frontend/index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Build unified index from source modules [skip ci]'
+          git commit -m 'Build unified index from source modules'
           git push
