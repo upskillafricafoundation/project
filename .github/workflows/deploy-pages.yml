@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'frontend/**'
+      - 'frontend/index.html'
+      - 'frontend/config.js'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -22,19 +23,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Verify unified frontend
+      - name: Verify generated unified frontend
         shell: bash
         run: |
           test -f frontend/index.html
           test -f frontend/config.js
-          ! grep -q '<iframe' frontend/index.html
+          ! grep -qi '<iframe' frontend/index.html
           grep -q 'UAF_NATIVE' frontend/index.html
-          echo "Unified frontend verified."
+          grep -q 'stage19' frontend/index.html
+          echo "Generated unified frontend verified."
 
       - name: Prepare Pages artifact
         shell: bash
